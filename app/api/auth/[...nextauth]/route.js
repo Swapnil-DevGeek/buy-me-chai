@@ -1,30 +1,60 @@
 import NextAuth from 'next-auth'
-import FacebookProvider from 'next-auth/providers/facebook'
-import GoogleProvider from 'next-auth/providers/google'
-import EmailProvider from 'next-auth/providers/email'
 import GitHubProvider from 'next-auth/providers/github'
+import User from '@/app/models/User'
+import connectDB from '@/app/db/connectDB'
 
-export const authoptions =  NextAuth({
+connectDB();
+
+export const authoptions = NextAuth({
   providers: [
     // OAuth authentication providers...
     GitHubProvider({
       clientId: process.env.GITHUB_CLIENT_ID,
       clientSecret: process.env.GITHUB_CLIENT_SECRET
     }),
-    // FacebookProvider({
-    //   clientId: process.env.FACEBOOK_ID,
-    //   clientSecret: process.env.FACEBOOK_SECRET
-    // }),
-    // GoogleProvider({
-    //   clientId: process.env.GOOGLE_ID,
-    //   clientSecret: process.env.GOOGLE_SECRET
-    // }),
-    // // Passwordless / email sign in
-    // EmailProvider({
-    //   server: process.env.MAIL_SERVER,
-    //   from: 'NextAuth.js <no-reply@example.com>'
-    // }),
-  ]
-})
+  ],
+  callbacks: {
+    async signIn({ user, account, profile, email, credentials }) {
+      try {
+        if (account.provider === "github") {
+          if (email) {
+            const currentUser = await User.findOne({ email });
+            if (!currentUser) {
+              // Split email only if it's defined and not null
+              const username = email.split("@")[0];
+              const newUser = await User.create({
+                email,
+                name: profile.name,
+                username,
+              });       
+              console.log(newUser)      
+              await newUser.save();
+              user.name = newUser.username;
+            } else {
+              user.name = currentUser.username;
+            }
+          }
+        }
+        return true;
+      } catch (error) {
+        console.error("Error in signIn callback:", error);
+        return false;
+      }
+    },
+    async session({ session, user, token }) {
+      try {
+        if (session && session.user && session.user.email) {
+          const dbUser = await User.findOne({ email: session.user.email });
+          if (dbUser) {
+            session.user.name = dbUser.username;
+          }
+        }
+      } catch (error) {
+        console.error("Error in session callback:", error);
+      }
+      return session;
+    }
+  }
+});
 
-export {authoptions as GET, authoptions as POST} 
+export { authoptions as GET, authoptions as POST };
