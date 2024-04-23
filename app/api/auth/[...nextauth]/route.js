@@ -3,8 +3,6 @@ import GitHubProvider from 'next-auth/providers/github'
 import User from '@/app/models/User'
 import connectDB from '@/app/db/connectDB'
 
-connectDB();
-
 export const authoptions = NextAuth({
   providers: [
     // OAuth authentication providers...
@@ -17,6 +15,7 @@ export const authoptions = NextAuth({
     async signIn({ user, account, profile, email, credentials }) {
       try {
         if (account.provider === "github") {
+          await connectDB();
           if (email) {
             const currentUser = await User.findOne({ email });
             if (!currentUser) {
@@ -27,12 +26,7 @@ export const authoptions = NextAuth({
                 name: profile.name,
                 username,
               });       
-              console.log(newUser)      
-              await newUser.save();
-              user.name = newUser.username;
-            } else {
-              user.name = currentUser.username;
-            }
+            } 
           }
         }
         return true;
